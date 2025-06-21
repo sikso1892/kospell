@@ -90,13 +90,13 @@ type chunkResult struct {
 	items []model.Correction
 }
 
-var bufPool = sync.Pool{New: func() any { return &strings.Builder{} }}
+// var bufPool = sync.Pool{New: func() any { return &strings.Builder{} }}
 
 func doRequest(ctx context.Context, text string) (chunkResult, error) {
 	// , "bWeakOpt": {"true"}, "pageIdx": {"1"}
 	form := url.Values{"text1": {text}}
 
-	req, err := net.NewPOST(ctx, "/speller/results", strings.NewReader(form.Encode()))
+	req, err := net.NewPOST(ctx, "/old_speller/results", strings.NewReader(form.Encode()))
 	if err != nil {
 		return chunkResult{}, err
 	}
