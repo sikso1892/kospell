@@ -5,6 +5,7 @@
 //
 //	echo "너는나와 ..." | kospell-cli
 //	kospell-cli -f text.txt
+//	kospell-cli -mode local -dict-dir /path/to/hunspell-dict-ko -lang ko
 package main
 
 import (
@@ -15,13 +16,19 @@ import (
 	"os"
 	"time"
 
+	"github.com/Alfex4936/kospell/internal/local"
+	"github.com/Alfex4936/kospell/internal/model"
 	"github.com/Alfex4936/kospell/internal/util"
 	"github.com/Alfex4936/kospell/kospell"
 )
 
 func main() {
-	file := flag.String("f", "", "file to read instead of stdin")
+	file    := flag.String("f", "", "file to read instead of stdin")
+	dict    := flag.String("d", "", "user dictionary JSON file (optional)")
 	timeout := flag.Duration("t", 8*time.Second, "overall timeout")
+	mode    := flag.String("mode", "nara", "backend: nara | local (hunspell)")
+	dictDir := flag.String("dict-dir", "", "hunspell dictionary directory (local mode)")
+	lang    := flag.String("lang", "ko", "hunspell dictionary name (local mode)")
 	flag.Parse()
 
 	var r io.Reader = os.Stdin
@@ -38,9 +45,33 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), *timeout)
 	defer cancel()
 
-	res, err := kospell.Check(ctx, string(data))
-	// fmt.Printf("data = %q\n", string(data))
-	// fmt.Printf("result = %+v\n", res)
+	text := string(data)
+
+	// 사용자 딕셔너리 로드 (선택)
+	var d *kospell.Dict
+	if *dict != "" {
+		d, err = kospell.LoadDict(*dict)
+		must(err)
+	}
+
+	var res *model.Result
+
+	switch *mode {
+	case "local":
+		h, herr := local.New(*dictDir, *lang)
+		must(herr)
+		if d != nil {
+			res, err = kospell.CheckLocalWithDict(ctx, text, h, d)
+		} else {
+			res, err = kospell.CheckLocal(ctx, text, h)
+		}
+	default: // nara
+		if d != nil {
+			res, err = kospell.CheckWithDict(ctx, text, d)
+		} else {
+			res, err = kospell.Check(ctx, text)
+		}
+	}
 	must(err)
 
 	out, _ := util.MarshalNoEscape(res, true)
