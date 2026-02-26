@@ -138,17 +138,23 @@ func CheckWithDict(ctx context.Context, text string, dict *Dict) (*model.Result,
 		corrParts[i] = applyCorrections(p, itemsByIdx[i])
 	}
 	res.Corrected = strings.Join(corrParts, " ")
+	res.Corrected = canonicalizeByDictWords(res.Corrected, dict)
 	res.EditDistance = util.Levenshtein(res.Original, res.Corrected)
 
 	return res, nil
 }
 
 func filterByDict(res *model.Result, dict *Dict) {
+	words := normalizedDictWords(dict)
+	if len(words) == 0 {
+		return
+	}
+
 	newCorrs := res.Corrections[:0]
 	for _, c := range res.Corrections {
 		kept := c.Items[:0]
 		for i := range c.Items {
-			if keepCorrectionForDict(&c.Items[i], dict) {
+			if keepCorrectionForDict(&c.Items[i], words) {
 				kept = append(kept, c.Items[i])
 			}
 		}
@@ -162,23 +168,15 @@ func filterByDict(res *model.Result, dict *Dict) {
 	res.Corrections = newCorrs
 }
 
-func keepCorrectionForDict(item *model.Correction, dict *Dict) bool {
-	if dict == nil || len(dict.Words) == 0 {
+func keepCorrectionForDict(item *model.Correction, words []dictWord) bool {
+	if len(words) == 0 {
 		return true
 	}
 
-	originNoSpace := strings.ReplaceAll(item.Origin, " ", "")
-	relevant := make([]string, 0, len(dict.Words))
-	for _, raw := range dict.Words {
-		w := strings.TrimSpace(raw)
-		if w == "" {
-			continue
-		}
-		wNoSpace := strings.ReplaceAll(w, " ", "")
-		if wNoSpace == "" {
-			continue
-		}
-		if strings.Contains(item.Origin, w) || strings.Contains(originNoSpace, wNoSpace) {
+	originCompact := compactWhitespace(item.Origin)
+	relevant := make([]dictWord, 0, len(words))
+	for _, w := range words {
+		if strings.Contains(item.Origin, w.Canonical) || strings.Contains(originCompact, w.Compact) {
 			relevant = append(relevant, w)
 		}
 	}
@@ -192,13 +190,14 @@ func keepCorrectionForDict(item *model.Correction, dict *Dict) bool {
 		changed := false
 		for _, w := range relevant {
 			var c bool
-			fixed, c = collapseSpacesWithinWord(fixed, w)
+			fixed, c = collapseSpacesWithinWord(fixed, w.Canonical)
 			changed = changed || c
 		}
 
+		fixedCompact := compactWhitespace(fixed)
 		ok := true
 		for _, w := range relevant {
-			if !strings.Contains(fixed, w) {
+			if !strings.Contains(fixed, w.Canonical) && !strings.Contains(fixedCompact, w.Compact) {
 				ok = false
 				break
 			}
@@ -227,12 +226,83 @@ func keepCorrectionForDict(item *model.Correction, dict *Dict) bool {
 	return true
 }
 
+type dictWord struct {
+	Canonical string
+	Compact   string
+}
+
+func canonicalizeByDictWords(text string, dict *Dict) string {
+	words := normalizedDictWords(dict)
+	if len(words) == 0 {
+		return text
+	}
+
+	out := text
+	for _, w := range words {
+		out, _ = collapseSpacesWithinWord(out, w.Canonical)
+	}
+	return out
+}
+
+func normalizedDictWords(dict *Dict) []dictWord {
+	if dict == nil || len(dict.Words) == 0 {
+		return nil
+	}
+
+	seen := make(map[string]struct{}, len(dict.Words))
+	words := make([]dictWord, 0, len(dict.Words))
+	for _, raw := range dict.Words {
+		w := normalizeDictWord(raw)
+		if w.Compact == "" {
+			continue
+		}
+		if _, ok := seen[w.Canonical]; ok {
+			continue
+		}
+		seen[w.Canonical] = struct{}{}
+		words = append(words, w)
+	}
+
+	sort.Slice(words, func(i, j int) bool {
+		li := utf8.RuneCountInString(words[i].Compact)
+		lj := utf8.RuneCountInString(words[j].Compact)
+		if li == lj {
+			return words[i].Canonical < words[j].Canonical
+		}
+		return li > lj
+	})
+	return words
+}
+
+func normalizeDictWord(raw string) dictWord {
+	canonical := strings.Join(strings.Fields(raw), " ")
+	if canonical == "" {
+		return dictWord{}
+	}
+	return dictWord{
+		Canonical: canonical,
+		Compact:   strings.ReplaceAll(canonical, " ", ""),
+	}
+}
+
+func compactWhitespace(s string) string {
+	if s == "" {
+		return ""
+	}
+	return strings.Join(strings.Fields(s), "")
+}
+
 func collapseSpacesWithinWord(s, word string) (string, bool) {
-	if word == "" || strings.Contains(s, word) {
+	if s == "" || word == "" {
 		return s, false
 	}
 
-	runes := []rune(word)
+	w := normalizeDictWord(word)
+	if w.Compact == "" {
+		return s, false
+	}
+
+	runes := []rune(w.Compact)
 	if len(runes) < 2 {
 		return s, false
 	}
@@ -246,7 +316,7 @@ func collapseSpacesWithinWord(s, word string) (string, bool) {
 	}
 
 	re := regexp.MustCompile(b.String())
-	out := re.ReplaceAllString(s, word)
+	out := re.ReplaceAllString(s, w.Canonical)
 	return out, out != s
 }
 
