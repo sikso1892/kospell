@@ -1,0 +1,33 @@
+services:
+  kospell:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: kospell
+    env_file:
+      - ./.env
+    environment:
+      MODE: ${MODE:-nara}
+      PORT: "8080"
+      DICT_DIR: ${DICT_DIR:-/dict}
+      DICT_LANG: ${DICT_LANG:-ko}
+      LLM_MODEL: ${LLM_MODEL:-}
+      LLM_BASE_URL: ${LLM_BASE_URL:-}
+    volumes:
+      - ${DICT_MOUNT:-./hunspell}:/dict:ro
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+  frpc:
+    image: fatedier/frpc:v0.65.0
+    container_name: kospell-frpc
+    env_file:
+      - ${ENV_FILE_PATH:-.env}
+    volumes:
+      - ./frpc/config/frpc.toml:/etc/frp/frpc.toml:z
+    command:
+      - -c
+      - /etc/frp/frpc.toml

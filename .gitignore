@@ -1,0 +1,5 @@
+/.DS_Store
+/.env
+/kospell-cli
+/kospell-server
+/go1.22.0.linux-amd64.tar.gz

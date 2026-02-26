@@ -1,0 +1,9 @@
+.DS_Store
+
+# Local build artifacts (repo contains macOS binaries)
+/kospell-server
+/kospell-cli
+
+# Optional local hunspell dictionaries (mounted at runtime)
+/hunspell
+

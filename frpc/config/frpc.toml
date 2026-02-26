@@ -1,0 +1,12 @@
+serverAddr = "datadev.flit.to"
+serverPort = {{ .Envs.FRPS_SERVER_PORT }}
+auth.method = "token"
+auth.token = "{{ .Envs.FRPS_SECRET_TOKEN }}"
+
+[[proxies]]
+name = "{{ .Envs.FRPC_HOSTNAME }}.{{ .Envs.SERVICE_NAME }}"
+type = "http"
+localIP = "{{ .Envs.SERVICE_NAME }}"
+localPort = {{ .Envs.SERVICE_PORT }}
+subdomain = "{{ .Envs.SERVICE_NAME }}"
+customDomains = ["{{ .Envs.SERVICE_NAME }}.datadev.internal.flit.to"]
