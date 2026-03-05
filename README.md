@@ -32,6 +32,9 @@ kospell-cli -f text.txt
 
 # 타임아웃 설정 (기본: 8초)
 kospell-cli -f text.txt -t 10s
+
+# 네이버 맞춤법 검사기 모드 (py-hanspell 방식)
+echo "안녕 하세요. 저는 한국인 입니다." | kospell-cli -mode hanspell
 ```
 
 ## 사용자 딕셔너리 (User Dictionary)
@@ -181,9 +184,14 @@ kospell-server
 # 커스텀 포트에서 실행
 kospell-server -p 3000
 
+# 사용 가능한 모드: nara | hunspell | hanspell | openai
+
 # 로컬 모드 (hunspell) — <lang>.aff/.dic 파일이 있는 디렉터리 지정
 # 예) /path/to/hunspell/ko.aff, /path/to/hunspell/ko.dic
-kospell-server -mode local -dict /path/to/hunspell -lang ko
+kospell-server -mode hunspell -dict /path/to/hunspell -lang ko
+
+# 네이버 맞춤법 검사기 모드 (py-hanspell 방식)
+kospell-server -mode hanspell
 ```
 
 ### API 엔드포인트

@@ -5,6 +5,7 @@
 //
 //	echo "너는나와 ..." | kospell-cli
 //	kospell-cli -mode hunspell -dict-dir /path/to/hunspell-dict-ko -lang ko
+//	kospell-cli -mode hanspell
 //	kospell-cli -mode openai -llm-key $OPENAI_API_KEY
 package main
 
@@ -16,6 +17,7 @@ import (
 	"os"
 	"time"
 
+	internalhanspell "github.com/Alfex4936/kospell/internal/hanspell"
 	internalllm "github.com/Alfex4936/kospell/internal/llm"
 	"github.com/Alfex4936/kospell/internal/local"
 	"github.com/Alfex4936/kospell/internal/model"
@@ -24,17 +26,17 @@ import (
 )
 
 func main() {
-	file     := flag.String("f", "", "file to read instead of stdin")
-	dict     := flag.String("d", "", "user dictionary JSON file (optional)")
-	timeout  := flag.Duration("t", 30*time.Second, "overall timeout")
-	mode     := flag.String("mode", "nara", "backend: nara | hunspell | openai")
+	file := flag.String("f", "", "file to read instead of stdin")
+	dict := flag.String("d", "", "user dictionary JSON file (optional)")
+	timeout := flag.Duration("t", 30*time.Second, "overall timeout")
+	mode := flag.String("mode", "nara", "backend: nara | hunspell | hanspell | openai")
 	// hunspell flags
-	dictDir  := flag.String("dict-dir", "", "hunspell dictionary directory (hunspell mode)")
-	lang     := flag.String("lang", "ko", "hunspell dictionary name (hunspell mode)")
+	dictDir := flag.String("dict-dir", "", "hunspell dictionary directory (hunspell mode)")
+	lang := flag.String("lang", "ko", "hunspell dictionary name (hunspell mode)")
 	// openai flags
-	llmKey   := flag.String("llm-key",   os.Getenv("OPENAI_API_KEY"), "OpenAI API key (openai mode)")
+	llmKey := flag.String("llm-key", os.Getenv("OPENAI_API_KEY"), "OpenAI API key (openai mode)")
 	llmModel := flag.String("llm-model", internalllm.DefaultModel, "LLM model name")
-	llmURL   := flag.String("llm-url",   internalllm.DefaultBaseURL, "OpenAI-compatible base URL")
+	llmURL := flag.String("llm-url", internalllm.DefaultBaseURL, "OpenAI-compatible base URL")
 	flag.Parse()
 
 	var r io.Reader = os.Stdin
@@ -69,6 +71,14 @@ func main() {
 			res, err = kospell.CheckLocalWithDict(ctx, text, h, d)
 		} else {
 			res, err = kospell.CheckLocal(ctx, text, h)
+		}
+
+	case "hanspell", "naver":
+		h := internalhanspell.New()
+		if d != nil {
+			res, err = kospell.CheckHanspellWithDict(ctx, text, h, d)
+		} else {
+			res, err = kospell.CheckHanspell(ctx, text, h)
 		}
 
 	case "openai":

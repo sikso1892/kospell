@@ -4,6 +4,7 @@
 //
 //	kospell-server -p 8080 -mode nara
 //	kospell-server -p 8080 -mode hunspell -dict /path/to/ko-dict -lang ko
+//	kospell-server -p 8080 -mode hanspell
 //	kospell-server -p 8080 -mode openai -llm-key $OPENAI_API_KEY
 package main
 
@@ -14,23 +15,24 @@ import (
 	"net/http"
 	"os"
 
+	internalhanspell "github.com/Alfex4936/kospell/internal/hanspell"
 	internalllm "github.com/Alfex4936/kospell/internal/llm"
 	"github.com/Alfex4936/kospell/internal/local"
 	"github.com/Alfex4936/kospell/kospell"
 )
 
 func main() {
-	port    := flag.String("p", "8080", "port to listen on")
-	mode    := flag.String("mode", envOr("MODE", "nara"), "backend: nara | hunspell | openai")
+	port := flag.String("p", "8080", "port to listen on")
+	mode := flag.String("mode", envOr("MODE", "nara"), "backend: nara | hunspell | hanspell | openai")
 
 	// hunspell flags
 	dictDir := flag.String("dict", envOr("DICT_DIR", ""), "hunspell dictionary directory (hunspell mode)")
-	lang    := flag.String("lang", envOr("DICT_LANG", "ko"), "hunspell dictionary name (hunspell mode)")
+	lang := flag.String("lang", envOr("DICT_LANG", "ko"), "hunspell dictionary name (hunspell mode)")
 
 	// openai flags
-	llmKey   := flag.String("llm-key",   envOr("OPENAI_API_KEY", ""), "OpenAI API key (openai mode)")
+	llmKey := flag.String("llm-key", envOr("OPENAI_API_KEY", ""), "OpenAI API key (openai mode)")
 	llmModel := flag.String("llm-model", envOr("LLM_MODEL", internalllm.DefaultModel), "LLM model name")
-	llmURL   := flag.String("llm-url",   envOr("LLM_BASE_URL", internalllm.DefaultBaseURL), "OpenAI-compatible base URL")
+	llmURL := flag.String("llm-url", envOr("LLM_BASE_URL", internalllm.DefaultBaseURL), "OpenAI-compatible base URL")
 
 	flag.Parse()
 
@@ -43,6 +45,11 @@ func main() {
 		kospell.Mode = "hunspell"
 		kospell.LocalHunspell = h
 		log.Printf("   backend : hunspell (dict=%s/%s)\n", *dictDir, *lang)
+
+	case "hanspell", "naver":
+		kospell.Mode = "hanspell"
+		kospell.HanspellChecker = internalhanspell.New()
+		log.Printf("   backend : hanspell (naver spell-check API)\n")
 
 	case "openai":
 		if *llmKey == "" {

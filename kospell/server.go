@@ -7,13 +7,14 @@ import (
 	"net/http"
 	"time"
 
+	internalhanspell "github.com/Alfex4936/kospell/internal/hanspell"
 	internalllm "github.com/Alfex4936/kospell/internal/llm"
 	"github.com/Alfex4936/kospell/internal/local"
 	"github.com/Alfex4936/kospell/internal/model"
 	"github.com/Alfex4936/kospell/internal/util"
 )
 
-// Mode selects the spell-check backend: "nara" | "hunspell" | "openai".
+// Mode selects the spell-check backend: "nara" | "hunspell" | "openai" | "hanspell".
 var Mode = "nara"
 
 // LocalHunspell is the shared hunspell process used when Mode == "hunspell".
@@ -21,6 +22,9 @@ var LocalHunspell *local.Hunspell
 
 // LLMChecker is the shared LLM client used when Mode == "openai".
 var LLMChecker *internalllm.Checker
+
+// HanspellChecker is the shared Naver checker used when Mode == "hanspell".
+var HanspellChecker *internalhanspell.Checker
 
 // CheckSpellRequest is the HTTP request body for /v1/check-spell
 type CheckSpellRequest struct {
@@ -99,6 +103,16 @@ func CheckSpellHandler(w http.ResponseWriter, r *http.Request) {
 		} else {
 			res, err = CheckLocal(ctx, req.Text, LocalHunspell)
 		}
+	case "hanspell", "naver":
+		if HanspellChecker == nil {
+			http.Error(w, "hanspell mode: checker not initialized", http.StatusInternalServerError)
+			return
+		}
+		if dict != nil {
+			res, err = CheckHanspellWithDict(ctx, req.Text, HanspellChecker, dict)
+		} else {
+			res, err = CheckHanspell(ctx, req.Text, HanspellChecker)
+		}
 	default: // nara
 		if dict != nil {
 			res, err = CheckWithDict(ctx, req.Text, dict)
@@ -147,7 +161,7 @@ const openAPISpec = `{
   "openapi": "3.0.3",
   "info": {
     "title": "KoSpell API",
-    "description": "한국어 맞춤법 검사 REST API (나라 맞춤법 검사기 기반)",
+    "description": "한국어 맞춤법 검사 REST API (nara/hunspell/hanspell/openai backend 지원)",
     "version": "1.0.0"
   },
   "paths": {
