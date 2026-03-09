@@ -28,11 +28,12 @@ var HanspellChecker *internalhanspell.Checker
 
 // CheckSpellRequest is the HTTP request body for /v1/check-spell
 type CheckSpellRequest struct {
-	Text     string   `json:"text"`                // 검사할 텍스트 (필수)
-	Words    []string `json:"words,omitempty"`     // 인라인 허용 단어 목록 (선택)
-	Dict     *Dict    `json:"dict,omitempty"`      // 사용자 딕셔너리 {"words":[...]} (선택)
-	DictPath string   `json:"dict_path,omitempty"` // (deprecated) 딕셔너리 JSON 파일 경로 (서버 로컬)
-	Timeout  int      `json:"timeout,omitempty"`   // 타임아웃 (초, 기본 8)
+	Text       string   `json:"text"`                  // 검사할 텍스트 (필수)
+	Words      []string `json:"words,omitempty"`       // 인라인 허용 단어 목록 (선택)
+	Dict       *Dict    `json:"dict,omitempty"`        // 사용자 딕셔너리 {"words":[...]} (선택)
+	DictPath   string   `json:"dict_path,omitempty"`   // (deprecated) 딕셔너리 JSON 파일 경로 (서버 로컬)
+	Timeout    int      `json:"timeout,omitempty"`     // 타임아웃 (초, 기본 8)
+	ErrorTypes []string `json:"error_types,omitempty"` // 교정할 오류 유형 필터 (선택)
 }
 
 // CheckSpellHandler handles POST /v1/check-spell requests
@@ -126,6 +127,17 @@ func CheckSpellHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	allowedTypes := defaultAllowedErrorTypes()
+	if len(req.ErrorTypes) > 0 {
+		var invalid []string
+		allowedTypes, invalid = normalizeErrorTypes(req.ErrorTypes)
+		if len(invalid) > 0 {
+			http.Error(w, fmt.Sprintf("Invalid error_types: %v", invalid), http.StatusBadRequest)
+			return
+		}
+	}
+	filterResultByErrorTypes(res, allowedTypes, dict)
+
 	// JSON 응답 (HTML 이스케이프 비활성화)
 	w.Header().Set("Content-Type", "application/json")
 	out, _ := util.MarshalNoEscape(res, true)
@@ -183,6 +195,9 @@ const openAPISpec = `{
                 },
                 "사용자 딕셔너리(dict)": {
                   "value": { "text": "너는나와 kafka 머고나서", "dict": { "words": ["kafka"] } }
+                },
+                "오류 유형 제한": {
+                  "value": { "text": "안녕 하세요. 저는 한국인 입니다.", "error_types": ["spacing"] }
                 },
                 "타임아웃 지정": {
                   "value": { "text": "긴 텍스트...", "timeout": 15 }
@@ -247,6 +262,16 @@ const openAPISpec = `{
           "words":     { "type": "array", "items": { "type": "string" }, "description": "오류에서 제외할 단어 목록 (인라인)", "example": ["kafka", "KoSpell"] },
           "dict":      { "$ref": "#/components/schemas/Dict" },
           "dict_path": { "type": "string", "description": "(deprecated) 딕셔너리 JSON 파일 경로 (서버 로컬)", "example": "/etc/kospell/dict.json", "deprecated": true },
+          "error_types": {
+            "type": "array",
+            "description": "교정할 오류 유형 제한 (선택). 미지정 시 기본값은 [\"spelling\", \"spacing\"]",
+            "items": {
+              "type": "string",
+              "enum": ["spelling", "spacing", "standard", "statistical", "unknown"]
+            },
+            "default": ["spelling", "spacing"],
+            "example": ["spacing", "spelling"]
+          },
           "timeout":   { "type": "integer", "description": "타임아웃 (초, 기본 8)", "example": 8 }
         }
       },

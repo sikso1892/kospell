@@ -206,7 +206,8 @@ curl -X POST http://localhost:8080/v1/check-spell \
   -H "Content-Type: application/json" \
   -d '{
     "text": "너는나와 kafka 머고나서",
-    "words": ["kafka"]
+    "words": ["kafka"],
+    "error_types": ["spacing"]
   }'
 ```
 
@@ -218,6 +219,7 @@ curl -X POST http://localhost:8080/v1/check-spell \
 | `words` | string[] | X | 오류에서 제외할 단어 목록 (인라인) |
 | `dict` | object | X | 사용자 딕셔너리 `{"words":[...]}` |
 | `dict_path` | string | X | (deprecated) 사용자 딕셔너리 JSON 파일 경로 (서버 로컬) |
+| `error_types` | string[] | X | 교정할 오류 유형 제한 (`spelling`, `spacing`, `standard`, `statistical`, `unknown`) - 미지정 시 기본값 `["spelling","spacing"]` |
 | `timeout` | int | X | 타임아웃 (초, 기본값: 8) |
 
 **응답:**
