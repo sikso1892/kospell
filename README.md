@@ -206,6 +206,7 @@ curl -X POST http://localhost:8080/v1/check-spell \
   -H "Content-Type: application/json" \
   -d '{
     "text": "너는나와 kafka 머고나서",
+    "backend": "hanspell",
     "words": ["kafka"],
     "error_types": ["spacing"]
   }'
@@ -216,11 +217,14 @@ curl -X POST http://localhost:8080/v1/check-spell \
 | 필드 | 타입 | 필수 | 설명 |
 |------|------|------|------|
 | `text` | string | O | 검사할 텍스트 |
+| `backend` | string | X | 요청별 백엔드 선택 (`nara`, `hunspell`, `hanspell`, `openai`) - 미지정 시 서버 기본 `MODE` 사용 |
 | `words` | string[] | X | 오류에서 제외할 단어 목록 (인라인) |
 | `dict` | object | X | 사용자 딕셔너리 `{"words":[...]}` |
 | `dict_path` | string | X | (deprecated) 사용자 딕셔너리 JSON 파일 경로 (서버 로컬) |
 | `error_types` | string[] | X | 교정할 오류 유형 제한 (`spelling`, `spacing`, `standard`, `statistical`, `unknown`) - 미지정 시 기본값 `["spelling","spacing"]` |
-| `timeout` | int | X | 타임아웃 (초, 기본값: 8) |
+| `timeout` | int | X | 타임아웃 (초, 기본값: openai=180, 그 외=8) |
+
+참고: `backend=hanspell`은 서버 기본 모드와 무관하게 요청 시 자동 초기화되어 사용 가능합니다. `hunspell`, `openai`는 서버 시작 시 해당 체크러가 초기화되어 있어야 합니다.
 
 **응답:**
 ```json

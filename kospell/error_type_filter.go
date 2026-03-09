@@ -77,7 +77,10 @@ func filterResultByErrorTypes(res *model.Result, allowed map[string]struct{}, di
 		for i := range c.Items {
 			t := classifyErrorType(&c.Items[i])
 			if _, ok := allowed[t]; ok {
-				kept = append(kept, c.Items[i])
+				item := c.Items[i]
+				if normalizeSuggestionSet(&item) {
+					kept = append(kept, item)
+				}
 			}
 		}
 		c.Items = kept
@@ -94,6 +97,38 @@ func filterResultByErrorTypes(res *model.Result, allowed map[string]struct{}, di
 		res.Corrected = canonicalizeByDictWords(res.Corrected, dict)
 	}
 	res.EditDistance = util.Levenshtein(res.Original, res.Corrected)
+}
+
+// normalizeSuggestionSet removes no-op suggestions (same as origin) and keeps
+// distance indices aligned. It returns false if no effective suggestion remains.
+func normalizeSuggestionSet(item *model.Correction) bool {
+	if item == nil || len(item.Suggest) == 0 {
+		return false
+	}
+
+	keptSuggest := item.Suggest[:0]
+	var keptDistances []int
+	hasDistances := len(item.Distances) > 0
+	if hasDistances {
+		keptDistances = item.Distances[:0]
+	}
+
+	for i, s := range item.Suggest {
+		if s == item.Origin {
+			continue
+		}
+		keptSuggest = append(keptSuggest, s)
+		if hasDistances && i < len(item.Distances) {
+			keptDistances = append(keptDistances, item.Distances[i])
+		}
+	}
+
+	item.Suggest = keptSuggest
+	if hasDistances {
+		item.Distances = keptDistances
+	}
+
+	return len(item.Suggest) > 0
 }
 
 func classifyErrorType(item *model.Correction) string {

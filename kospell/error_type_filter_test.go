@@ -90,3 +90,60 @@ func TestClassifyErrorType_BySpacingShape(t *testing.T) {
 		t.Fatalf("classifyErrorType = %q, want %q", got, errorTypeSpacing)
 	}
 }
+
+func TestFilterResultByErrorTypes_DropsNoopSuggestionItem(t *testing.T) {
+	original := "성남미디어센터의 로비"
+	res := &model.Result{
+		Original:   original,
+		Corrected:  original,
+		ChunkCount: 1,
+		ErrorCount: 1,
+		Corrections: []model.Chunk{
+			{
+				Idx:   0,
+				Input: original,
+				Items: []model.Correction{
+					{
+						Start:     0,
+						End:       8,
+						Origin:    "성남미디어센터의",
+						Suggest:   []string{"성남미디어센터의"},
+						Distances: []int{0},
+						Help:      "띄어쓰기 오류",
+					},
+				},
+			},
+		},
+	}
+
+	filterResultByErrorTypes(res, map[string]struct{}{errorTypeSpacing: {}}, nil)
+
+	if res.ErrorCount != 0 {
+		t.Fatalf("ErrorCount = %d, want 0", res.ErrorCount)
+	}
+	if len(res.Corrections) != 0 {
+		t.Fatalf("len(Corrections) = %d, want 0", len(res.Corrections))
+	}
+	if got, want := res.Corrected, original; got != want {
+		t.Fatalf("Corrected = %q, want %q", got, want)
+	}
+}
+
+func TestNormalizeSuggestionSet_RemovesOnlyNoopEntries(t *testing.T) {
+	item := &model.Correction{
+		Origin:    "안 내",
+		Suggest:   []string{"안 내", "안내"},
+		Distances: []int{0, 1},
+	}
+
+	ok := normalizeSuggestionSet(item)
+	if !ok {
+		t.Fatal("normalizeSuggestionSet should keep effective suggestions")
+	}
+	if len(item.Suggest) != 1 || item.Suggest[0] != "안내" {
+		t.Fatalf("Suggest = %v, want [안내]", item.Suggest)
+	}
+	if len(item.Distances) != 1 || item.Distances[0] != 1 {
+		t.Fatalf("Distances = %v, want [1]", item.Distances)
+	}
+}

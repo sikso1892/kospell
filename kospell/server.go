@@ -29,10 +29,11 @@ var HanspellChecker *internalhanspell.Checker
 // CheckSpellRequest is the HTTP request body for /v1/check-spell
 type CheckSpellRequest struct {
 	Text       string   `json:"text"`                  // 검사할 텍스트 (필수)
+	Backend    string   `json:"backend,omitempty"`     // 백엔드 선택 (선택: nara|hunspell|hanspell|openai)
 	Words      []string `json:"words,omitempty"`       // 인라인 허용 단어 목록 (선택)
 	Dict       *Dict    `json:"dict,omitempty"`        // 사용자 딕셔너리 {"words":[...]} (선택)
 	DictPath   string   `json:"dict_path,omitempty"`   // (deprecated) 딕셔너리 JSON 파일 경로 (서버 로컬)
-	Timeout    int      `json:"timeout,omitempty"`     // 타임아웃 (초, 기본 8)
+	Timeout    int      `json:"timeout,omitempty"`     // 타임아웃 (초, 기본: openai=180, 그 외=8)
 	ErrorTypes []string `json:"error_types,omitempty"` // 교정할 오류 유형 필터 (선택)
 }
 
@@ -50,11 +51,18 @@ func CheckSpellHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer r.Body.Close()
 
-	// 타임아웃 설정 (기본: nara/hunspell=8초, openai=60초)
-	defaultTimeout := 8 * time.Second
-	if Mode == "openai" {
-		defaultTimeout = 3 * 60 * time.Second
+	backend, err := resolveBackend(req.Backend)
+	if err != nil {
+		status := http.StatusBadRequest
+		if req.Backend == "" {
+			status = http.StatusInternalServerError
+		}
+		http.Error(w, err.Error(), status)
+		return
 	}
+
+	// 타임아웃 설정 (기본: openai=180초, 기타=8초)
+	defaultTimeout := defaultTimeoutForBackend(backend)
 	timeout := defaultTimeout
 	if req.Timeout > 0 {
 		timeout = time.Duration(req.Timeout) * time.Second
@@ -81,9 +89,8 @@ func CheckSpellHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var res *model.Result
-	var err error
 
-	switch Mode {
+	switch backend {
 	case "openai":
 		if LLMChecker == nil {
 			http.Error(w, "openai mode: LLM checker not initialized", http.StatusInternalServerError)
@@ -105,14 +112,11 @@ func CheckSpellHandler(w http.ResponseWriter, r *http.Request) {
 			res, err = CheckLocal(ctx, req.Text, LocalHunspell)
 		}
 	case "hanspell", "naver":
-		if HanspellChecker == nil {
-			http.Error(w, "hanspell mode: checker not initialized", http.StatusInternalServerError)
-			return
-		}
+		checker := getHanspellChecker()
 		if dict != nil {
-			res, err = CheckHanspellWithDict(ctx, req.Text, HanspellChecker, dict)
+			res, err = CheckHanspellWithDict(ctx, req.Text, checker, dict)
 		} else {
-			res, err = CheckHanspell(ctx, req.Text, HanspellChecker)
+			res, err = CheckHanspell(ctx, req.Text, checker)
 		}
 	default: // nara
 		if dict != nil {
@@ -193,6 +197,9 @@ const openAPISpec = `{
                 "인라인 딕셔너리": {
                   "value": { "text": "너는나와 kafka 머고나서", "words": ["kafka"] }
                 },
+                "백엔드 지정(hanspell)": {
+                  "value": { "text": "안녕 하세요. 저는 한국인 입니다.", "backend": "hanspell" }
+                },
                 "사용자 딕셔너리(dict)": {
                   "value": { "text": "너는나와 kafka 머고나서", "dict": { "words": ["kafka"] } }
                 },
@@ -259,6 +266,7 @@ const openAPISpec = `{
         "required": ["text"],
         "properties": {
           "text":      { "type": "string", "description": "검사할 텍스트 (필수)", "example": "너는나와 kafka 머고나서" },
+          "backend":   { "type": "string", "description": "요청별 백엔드 지정 (선택, 미지정 시 서버 기본 MODE 사용)", "enum": ["nara", "hunspell", "hanspell", "openai"], "example": "hanspell" },
           "words":     { "type": "array", "items": { "type": "string" }, "description": "오류에서 제외할 단어 목록 (인라인)", "example": ["kafka", "KoSpell"] },
           "dict":      { "$ref": "#/components/schemas/Dict" },
           "dict_path": { "type": "string", "description": "(deprecated) 딕셔너리 JSON 파일 경로 (서버 로컬)", "example": "/etc/kospell/dict.json", "deprecated": true },
@@ -272,7 +280,7 @@ const openAPISpec = `{
             "default": ["spelling", "spacing"],
             "example": ["spacing", "spelling"]
           },
-          "timeout":   { "type": "integer", "description": "타임아웃 (초, 기본 8)", "example": 8 }
+          "timeout":   { "type": "integer", "description": "타임아웃 (초, 기본값: openai=180, 그 외=8)", "example": 8 }
         }
       },
       "Dict": {
