@@ -147,3 +147,38 @@ func TestNormalizeSuggestionSet_RemovesOnlyNoopEntries(t *testing.T) {
 		t.Fatalf("Distances = %v, want [1]", item.Distances)
 	}
 }
+
+func TestFilterResultByErrorTypes_SetsErrorTypeOnResponseItem(t *testing.T) {
+	original := "맞춤법"
+	res := &model.Result{
+		Original:   original,
+		Corrected:  original,
+		ChunkCount: 1,
+		ErrorCount: 1,
+		Corrections: []model.Chunk{
+			{
+				Idx:   0,
+				Input: original,
+				Items: []model.Correction{
+					{
+						Start:     0,
+						End:       3,
+						Origin:    "맞춤법",
+						Suggest:   []string{"마춤법"},
+						Distances: []int{1},
+						Help:      "맞춤법 오류",
+					},
+				},
+			},
+		},
+	}
+
+	filterResultByErrorTypes(res, map[string]struct{}{errorTypeSpelling: {}}, nil)
+
+	if len(res.Corrections) != 1 || len(res.Corrections[0].Items) != 1 {
+		t.Fatalf("unexpected corrections size: %d/%d", len(res.Corrections), len(res.Corrections[0].Items))
+	}
+	if got := res.Corrections[0].Items[0].ErrorType; got != errorTypeSpelling {
+		t.Fatalf("ErrorType = %q, want %q", got, errorTypeSpelling)
+	}
+}

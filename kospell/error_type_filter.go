@@ -78,6 +78,7 @@ func filterResultByErrorTypes(res *model.Result, allowed map[string]struct{}, di
 			t := classifyErrorType(&c.Items[i])
 			if _, ok := allowed[t]; ok {
 				item := c.Items[i]
+				item.ErrorType = t
 				if normalizeSuggestionSet(&item) {
 					kept = append(kept, item)
 				}
