@@ -170,6 +170,7 @@ kospell-cli -f text.txt -d user_dict.json -t 10s
 | `origin` | 잘못된 원본 단어 |
 | `suggest` | 대체 제안 목록 |
 | `help` | 오류 설명 (선택사항) |
+| `error_type` | 오류 유형 (`spelling`, `spacing`, `standard`, `statistical`, `unknown`) |
 
 ## REST API 서버
 
@@ -242,7 +243,8 @@ curl -X POST http://localhost:8080/v1/check-spell \
           "end": 4,
           "origin": "너는나와",
           "suggest": ["너는 나와"],
-          "help": "관형사형 어미 뒤에 오는 말은 띄어 씁니다."
+          "help": "관형사형 어미 뒤에 오는 말은 띄어 씁니다.",
+          "error_type": "spacing"
         }
       ]
     }

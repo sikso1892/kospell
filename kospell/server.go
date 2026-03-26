@@ -229,8 +229,8 @@ const openAPISpec = `{
                       "idx": 0,
                       "input": "너는나와 kafka 머고나서",
                       "items": [
-                        { "start": 0, "end": 4, "origin": "너는나와", "suggest": ["너는 나와"], "help": "띄어쓰기 오류" },
-                        { "start": 11, "end": 15, "origin": "머고나서", "suggest": ["머고 나서"], "help": "띄어쓰기 오류" }
+                        { "start": 0, "end": 4, "origin": "너는나와", "suggest": ["너는 나와"], "help": "띄어쓰기 오류", "error_type": "spacing" },
+                        { "start": 11, "end": 15, "origin": "머고나서", "suggest": ["머고 나서"], "help": "띄어쓰기 오류", "error_type": "spacing" }
                       ]
                     }
                   ]
@@ -317,7 +317,8 @@ const openAPISpec = `{
           "origin":  { "type": "string",  "description": "원본 오류 단어" },
           "suggest":   { "type": "array", "items": { "type": "string" }, "description": "교정 제안 목록" },
           "distances": { "type": "array", "items": { "type": "integer" }, "description": "suggest[i]와 origin 간 Levenshtein 편집거리" },
-          "help":      { "type": "string",  "description": "오류 설명" }
+          "help":      { "type": "string",  "description": "오류 설명" },
+          "error_type": { "type": "string", "description": "오류 유형", "enum": ["spelling", "spacing", "standard", "statistical", "unknown"], "example": "spacing" }
         }
       }
     }
