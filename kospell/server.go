@@ -336,6 +336,6 @@ const redocHTML = `<!DOCTYPE html>
 </head>
 <body>
   <redoc spec-url="/openapi.json" expand-responses="200" hide-download-button></redoc>
-  <script src="https://cdn.jsdelivr.net/npm/redoc@latest/bundles/redoc.standalone.js"></script>
+  <script type="module" src="https://cdn.jsdelivr.net/npm/redoc@3.1.0/bundles/redoc.standalone.js"></script>
 </body>
 </html>`
